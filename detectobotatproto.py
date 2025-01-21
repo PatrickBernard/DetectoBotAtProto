@@ -1,5 +1,11 @@
-from atproto import Client, client_utils
+from atproto import Client
 import configparser
+
+# Écrire les textes dans un fichier ligne par ligne
+def write_posts_to_file(posts, filename):
+    with open(filename, 'w', encoding='utf-8') as file:
+        for post in posts:
+            file.write(post.record.text + '\n')
 
 def main():
     config = configparser.ConfigParser()
@@ -11,18 +17,27 @@ def main():
     profile = client.login(app_login, app_passwd)
     print('Welcome,', profile.display_name)
     
-    handle = 'norton2546.bsky.social'
+    handle = 'gemmatroup124.bsky.social'
     
     print(f'\nProfile Posts of {handle}:\n\n')
 
-    # Get profile's posts. Use pagination (cursor + limit) to fetch all
-    profile_feed = client.get_author_feed(actor=handle, limit=5)
-    for feed_view in profile_feed.feed:
-        print('-', feed_view.post.record.text)
+    cursor = None
+    
+    while True:
+        # Récupérer une page de posts
+        response = client.get_author_feed(actor=handle,cursor=cursor,limit=5)
+        
+        with open("toto.log", 'a', encoding='utf-8') as file:
+            for view in response.feed:
+                file.write(view.post.record.text + '\n')
 
-    #text = client_utils.TextBuilder().text('TEST : Hello World from detectobot ').link('Python SDK', 'https://atproto.blue')
-    #post = client.send_post(text)
-    #client.like(post.uri, post.cid)
+        # Vérifier si un curseur est disponible pour la page suivante
+        cursor = response.cursor
+        
+        # Si aucun curseur n'est disponible, on a tout récupéré
+        if not cursor:
+            break
+
 
 if __name__ == '__main__':
     main()

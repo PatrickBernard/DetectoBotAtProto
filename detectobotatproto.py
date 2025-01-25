@@ -1,8 +1,8 @@
-from atproto import Client
+from atproto import Client, models
+from datetime import datetime, timezone
 import configparser
 import sqlite3
 import hashlib
-import pprint
 
 # Calculer le MD5 d'un texte
 def calculate_md5(text):
@@ -81,20 +81,6 @@ def find_accounts_with_message(message):
         print(f"Erreur lors de la recherche des comptes pour le message '{message}' : {e}")
         return []
 
-def get_list_uri(user_name,list_name):
-    try:
-        response = client.app.bsky.graph.get_lists(params={"actor": user_name})
-        if hasattr(response, "lists"):
-            for lst in response.lists:
-                print(pprint(lst))
-                if lst.name == list_name:
-                    print(f"URI trouvé pour la liste '{list_name}' : {lst.uri}")
-                    return lst.uri
-        print(f"Liste '{list_name}' introuvable.")
-    except Exception as e:
-        print(f"Erreur lors de la récupération des listes : {e}")
-    return None
-
 # Fonction pour créer ou récupérer une liste de modération
 def create_or_get_moderation_list(actor,list_name):
     # Récupérer les listes existantes
@@ -112,22 +98,22 @@ def create_or_get_moderation_list(actor,list_name):
         print(f"Erreur lors de la récupération des listes : {e}")
 
 #     # Si la liste n'existe pas, la créer
-#     # try:
-#     #     # Ici, on simule la création d'une liste avec un appel correct pour l'API
-#     #     response = client.app.bsky.graph.list.create()
-#     #     (
-#     #         params={
-#     #             "name": list_name,
-#     #             "description": "Liste de modération automatique"
-#     #         }
-#     #     )
-#     #     moderation_list_id = response['uri']
-#     #     print(f"Liste de modération créée avec l'ID : {moderation_list_id}")
-#     #     return moderation_list_id
-#     # except Exception as e:
-#     #     print(f"Erreur lors de la création de la liste : {e}")
+#     try:
+#         # Ici, on simule la création d'une liste avec un appel correct pour l'API
+#         response = client.app.bsky.graph.list.create()
+#         (
+#             params={
+#                 "name": list_name,
+#                 "description": "Liste de modération automatique"
+#             }
+#         )
+#         moderation_list_id = response['uri']
+#         print(f"Liste de modération créée avec l'ID : {moderation_list_id}")
+#         return moderation_list_id
+#     except Exception as e:
+#         print(f"Erreur lors de la création de la liste : {e}")
 
-# # Fonction pour ajouter un compte à la liste de modération
+# Fonction pour ajouter un compte à la liste de modération
 # def add_account_to_moderation_list(account_handle, list_id):
 #     try:
 #         client.app.bsky.graph.list.list(
@@ -140,20 +126,6 @@ def create_or_get_moderation_list(actor,list_name):
 #     except Exception as e:
 #         print(f"Erreur lors de l'ajout de {account_handle} à la liste : {e}")
 
-def explore_object(obj, level=0):
-    indent = "  " * level
-    if isinstance(obj, dict):
-        for key, value in obj.items():
-            print(f"{indent}{key}:")
-            explore_object(value, level + 1)
-    elif isinstance(obj, list):
-        for i, item in enumerate(obj):
-            print(f"{indent}[{i}]:")
-            explore_object(item, level + 1)
-    else:
-        print(f"{indent}{obj}")
-
-
 if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read('settings.ini')
@@ -161,31 +133,45 @@ if __name__ == '__main__':
     app_passwd = config['client']['app_passwd']
     target = config['targets']['target']
     list_name = config['lists']['moderation_list_name']
-
+    list_purpose = 'app.bsky.graph.defs#modlist'
     #conn = connect_to_database()
     #create_table(conn)
     
     client = Client()
     profile = client.login(app_login, app_passwd)
     print('Welcome,', profile.display_name)
-    
-    create_or_get_moderation_list(app_login,list_name)
-    
-    #response = client.app.bsky.graph.get_list(params={"actor": app_login})
 
-    #get_list_uri(app_login,list_name)
+    # TODO    
+    # créer la liste
+    # rechercher les comptes depûis les messages en bdd
+    # ajouter les comptes à la liste
+    
+    try:
+        current_time = datetime.now(timezone.utc).isoformat()
+        created_list=client.com.atproto.repo.create_record(
+            repo=profile.did,
+            collection='app.bsky.graph.list',
+            record={
+                '$type': 'app.bsky.graph.list',
+                'name': list_name,
+                'purpose': list_purpose,
+                'createdAt': current_time
+                }
+            )
+        print(f"Liste créée : {created_list.uri}")
+    except Exception as e:
+        print(f"Erreur lors de la création de la liste : {e}")
+       
     
     # message="En soutenant inconditionnellement l'Ukraine, Macron a négligé les problèmes internes de la France. C'est inacceptable."
     # responses=find_accounts_with_message(message)
     
     # for i, account in enumerate(responses, start=1):
     #     print(f"{i}. {account}")
-    #     #add_account_to_moderation_list(account, list_id)
-    # print(dir(client.app.bsky.graph))
+    #     add_account_to_moderation_list(account, list_id)
     
     
-    # Récupération des posts de target,
-    # avec le md5 associer cela nous sert également de déduplication
+    # Récupération des posts de target, avec le md5 associer cela nous sert également de déduplication
     #Insert_post_target_to_db(target, conn, client)
     
     # récupère les messages de la bdd
@@ -198,6 +184,6 @@ if __name__ == '__main__':
     #    for account in accounts:
     #        add_account_to_moderation_list(moderation_list_id,account)
     
-    # enregistrement du sample
+    # enregistrement d'un sample d'un bot connu
     # log_file_path = "gemmatroup124.log"
     # insert_log_file_to_db(conn, log_file_path)

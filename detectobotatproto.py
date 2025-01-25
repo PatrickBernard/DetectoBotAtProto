@@ -2,6 +2,7 @@ from atproto import Client
 import configparser
 import sqlite3
 import hashlib
+import pprint
 
 # Calculer le MD5 d'un texte
 def calculate_md5(text):
@@ -80,47 +81,77 @@ def find_accounts_with_message(message):
         print(f"Erreur lors de la recherche des comptes pour le message '{message}' : {e}")
         return []
 
-# Fonction pour imprimer la liste des comptes
-def print_accounts_list(accounts):
-    if not accounts:
-        print("Aucun compte n'a été trouvé.")
-        return
-
-    print("Liste des comptes trouvés :")
-    for i, account in enumerate(accounts, start=1):
-        print(f"{i}. {account}")
+def get_list_uri(user_name,list_name):
+    try:
+        response = client.app.bsky.graph.get_lists(params={"actor": user_name})
+        if hasattr(response, "lists"):
+            for lst in response.lists:
+                print(pprint(lst))
+                if lst.name == list_name:
+                    print(f"URI trouvé pour la liste '{list_name}' : {lst.uri}")
+                    return lst.uri
+        print(f"Liste '{list_name}' introuvable.")
+    except Exception as e:
+        print(f"Erreur lors de la récupération des listes : {e}")
+    return None
 
 # Fonction pour créer ou récupérer une liste de modération
 def create_or_get_moderation_list(actor,list_name):
-    global moderation_list_id
-
     # Récupérer les listes existantes
     try:
-        lists = client.app.bsky.graph.get_lists(params={"actor": actor})
-        for lst in lists['lists']:
-            print(lst['name']) 
-            if lst['name'] == list_name:
-                moderation_list_id = lst['uri']
-                print(f"Liste de modération trouvée avec l'ID : {moderation_list_id}")
-                return moderation_list_id
+        response = client.app.bsky.graph.get_lists(params={"actor": actor})
+        if hasattr(response, 'lists'):
+            for lst in response.lists:
+                print(f"nom : {lst.name} | uri : {lst.uri} | test : {lst.name == list_name}")
+                if lst.name == list_name:  # Vérifie si le nom de la liste correspond
+                    print(f"Liste de modération trouvée avec l'ID : {lst.uri}")
+                    return lst.uri
+        else:
+            print("Aucune liste trouvée ou structure inattendue dans la réponse.")
     except Exception as e:
         print(f"Erreur lors de la récupération des listes : {e}")
 
-    # Si la liste n'existe pas, la créer
-    # try:
-    #     # Ici, on simule la création d'une liste avec un appel correct pour l'API
-    #     response = client.app.bsky.graph.list.create()
-    #     (
-    #         params={
-    #             "name": list_name,
-    #             "description": "Liste de modération automatique"
-    #         }
-    #     )
-    #     moderation_list_id = response['uri']
-    #     print(f"Liste de modération créée avec l'ID : {moderation_list_id}")
-    #     return moderation_list_id
-    # except Exception as e:
-    #     print(f"Erreur lors de la création de la liste : {e}")
+#     # Si la liste n'existe pas, la créer
+#     # try:
+#     #     # Ici, on simule la création d'une liste avec un appel correct pour l'API
+#     #     response = client.app.bsky.graph.list.create()
+#     #     (
+#     #         params={
+#     #             "name": list_name,
+#     #             "description": "Liste de modération automatique"
+#     #         }
+#     #     )
+#     #     moderation_list_id = response['uri']
+#     #     print(f"Liste de modération créée avec l'ID : {moderation_list_id}")
+#     #     return moderation_list_id
+#     # except Exception as e:
+#     #     print(f"Erreur lors de la création de la liste : {e}")
+
+# # Fonction pour ajouter un compte à la liste de modération
+# def add_account_to_moderation_list(account_handle, list_id):
+#     try:
+#         client.app.bsky.graph.list.list(
+#             params={
+#                 "list": list_id,
+#                 "subject": f"did:plc:{account_handle}"  # DID du compte à ajouter
+#             }
+#         )
+#         print(f"Ajouté {account_handle} à la liste de modération.")
+#     except Exception as e:
+#         print(f"Erreur lors de l'ajout de {account_handle} à la liste : {e}")
+
+def explore_object(obj, level=0):
+    indent = "  " * level
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            print(f"{indent}{key}:")
+            explore_object(value, level + 1)
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            print(f"{indent}[{i}]:")
+            explore_object(item, level + 1)
+    else:
+        print(f"{indent}{obj}")
 
 
 if __name__ == '__main__':
@@ -131,22 +162,26 @@ if __name__ == '__main__':
     target = config['targets']['target']
     list_name = config['lists']['moderation_list_name']
 
-    # Connexion à la base de données
-    conn = connect_to_database()
-
-    # Création de la table
-    create_table(conn)
+    #conn = connect_to_database()
+    #create_table(conn)
     
-    # Connexion à bsky
     client = Client()
     profile = client.login(app_login, app_passwd)
     print('Welcome,', profile.display_name)
-    create_or_get_moderation_list(app_login,list_name)
-    print(f"ID de la liste de modération : {moderation_list_id}")
     
-    message="En soutenant inconditionnellement l'Ukraine, Macron a négligé les problèmes internes de la France. C'est inacceptable."
-    responses=find_accounts_with_message(message)
-    print_accounts_list(responses)
+    create_or_get_moderation_list(app_login,list_name)
+    
+    #response = client.app.bsky.graph.get_list(params={"actor": app_login})
+
+    #get_list_uri(app_login,list_name)
+    
+    # message="En soutenant inconditionnellement l'Ukraine, Macron a négligé les problèmes internes de la France. C'est inacceptable."
+    # responses=find_accounts_with_message(message)
+    
+    # for i, account in enumerate(responses, start=1):
+    #     print(f"{i}. {account}")
+    #     #add_account_to_moderation_list(account, list_id)
+    # print(dir(client.app.bsky.graph))
     
     
     # Récupération des posts de target,

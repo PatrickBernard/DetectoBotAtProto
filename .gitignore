@@ -1,5 +1,7 @@
 # my file
 settings.ini
+test.py
+botmessage.db
 *.log
 toto
 

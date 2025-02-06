@@ -1,5 +1,6 @@
 from atproto import Client, models
 from datetime import datetime, timezone
+from pprint import pprint
 import configparser
 import sqlite3
 import hashlib
@@ -21,6 +22,15 @@ def create_table(conn):
                 text_content TEXT NOT NULL
             )
         ''')
+
+def create_table_account(conn):
+    with conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS account_table (
+                id TEXT PRIMARY KEY, -- MD5 hash
+                text_content TEXT NOT NULL
+            )
+        ''')
         
 # Insérer un texte dans la table
 def insert_unique_text(conn, text):
@@ -34,6 +44,19 @@ def insert_unique_text(conn, text):
         print(f"Texte inséré : {text}")
     except sqlite3.IntegrityError:
         print(f"Doublon détecté : {text} (MD5 : {md5_hash})")
+        
+# Insérer un compte dans la table
+def insert_unique_account(conn, account):
+    md5_hash = calculate_md5(account)
+    try:
+        with conn:
+            conn.execute('''
+                INSERT INTO account_table (id, text_content)
+                VALUES (?, ?)
+            ''', (md5_hash, account))
+        print(f"Texte inséré : {account}")
+    except sqlite3.IntegrityError:
+        print(f"Doublon détecté : {account} (MD5 : {md5_hash})")
 
 # Ajouter toutes les lignes d'un log à la base de données
 def insert_log_file_to_db(conn, log_file_path):
@@ -59,11 +82,12 @@ def Insert_post_target_to_db(target, conn, client):
     cursor = None
     while True:
         # Récupérer une page de posts
-        response = client.get_author_feed(actor=target,cursor=cursor,limit=5)
-        for text in response.feed:
+        response = client.get_author_feed(actor=target,cursor=cursor,limit=50)
+        for post in response.feed:
+            text = post.post.record.text
             insert_unique_text(conn, text)
         # Vérifier si un curseur est disponible pour la page suivante
-        cursor = response.cursor        
+        cursor = response.cursor
         # Si aucun curseur n'est disponible, on a tout récupéré
         if not cursor:
             break
@@ -81,50 +105,18 @@ def find_accounts_with_message(message):
         print(f"Erreur lors de la recherche des comptes pour le message '{message}' : {e}")
         return []
 
-# Fonction pour créer ou récupérer une liste de modération
-def create_or_get_moderation_list(actor,list_name):
-    # Récupérer les listes existantes
-    try:
-        response = client.app.bsky.graph.get_lists(params={"actor": actor})
-        if hasattr(response, 'lists'):
-            for lst in response.lists:
-                print(f"nom : {lst.name} | uri : {lst.uri} | test : {lst.name == list_name}")
-                if lst.name == list_name:  # Vérifie si le nom de la liste correspond
-                    print(f"Liste de modération trouvée avec l'ID : {lst.uri}")
-                    return lst.uri
-        else:
-            print("Aucune liste trouvée ou structure inattendue dans la réponse.")
-    except Exception as e:
-        print(f"Erreur lors de la récupération des listes : {e}")
-
-#     # Si la liste n'existe pas, la créer
-#     try:
-#         # Ici, on simule la création d'une liste avec un appel correct pour l'API
-#         response = client.app.bsky.graph.list.create()
-#         (
-#             params={
-#                 "name": list_name,
-#                 "description": "Liste de modération automatique"
-#             }
-#         )
-#         moderation_list_id = response['uri']
-#         print(f"Liste de modération créée avec l'ID : {moderation_list_id}")
-#         return moderation_list_id
-#     except Exception as e:
-#         print(f"Erreur lors de la création de la liste : {e}")
-
-# Fonction pour ajouter un compte à la liste de modération
-# def add_account_to_moderation_list(account_handle, list_id):
-#     try:
-#         client.app.bsky.graph.list.list(
-#             params={
-#                 "list": list_id,
-#                 "subject": f"did:plc:{account_handle}"  # DID du compte à ajouter
-#             }
-#         )
-#         print(f"Ajouté {account_handle} à la liste de modération.")
-#     except Exception as e:
-#         print(f"Erreur lors de l'ajout de {account_handle} à la liste : {e}")
+    # TODO
+    # créer la bdd et les tables
+    # rechercher les messages de la target
+    # enregistrer le smessage en bdd unifier par md5
+    # --
+    # rechercher les comptes depuis les messages en bdd
+    # ajouter les comptes à la bdd
+    # --
+    # créer la liste
+    # mettre les comptes dans la liste
+    # --
+    # en faire un executable pour le commun des mortels
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
@@ -134,56 +126,24 @@ if __name__ == '__main__':
     target = config['targets']['target']
     list_name = config['lists']['moderation_list_name']
     list_purpose = 'app.bsky.graph.defs#modlist'
-    #conn = connect_to_database()
-    #create_table(conn)
+    conn = connect_to_database()
+    create_table(conn)
+    create_table_account(conn)
     
     client = Client()
     profile = client.login(app_login, app_passwd)
     print('Welcome,', profile.display_name)
 
-    # TODO    
-    # créer la liste
-    # rechercher les comptes depûis les messages en bdd
-    # ajouter les comptes à la liste
-    
-    try:
-        current_time = datetime.now(timezone.utc).isoformat()
-        created_list=client.com.atproto.repo.create_record(
-            repo=profile.did,
-            collection='app.bsky.graph.list',
-            record={
-                '$type': 'app.bsky.graph.list',
-                'name': list_name,
-                'purpose': list_purpose,
-                'createdAt': current_time
-                }
-            )
-        print(f"Liste créée : {created_list.uri}")
-    except Exception as e:
-        print(f"Erreur lors de la création de la liste : {e}")
-       
-    
-    # message="En soutenant inconditionnellement l'Ukraine, Macron a négligé les problèmes internes de la France. C'est inacceptable."
-    # responses=find_accounts_with_message(message)
-    
-    # for i, account in enumerate(responses, start=1):
-    #     print(f"{i}. {account}")
-    #     add_account_to_moderation_list(account, list_id)
-    
-    
     # Récupération des posts de target, avec le md5 associer cela nous sert également de déduplication
-    #Insert_post_target_to_db(target, conn, client)
-    
+    Insert_post_target_to_db(target, conn, client)
+
     # récupère les messages de la bdd
-    #cursor = conn.cursor()
-    #cursor.execute("SELECT text_content FROM text_table")
-    #messages = cursor.fetchall()
+    cursor = conn.cursor()
+    cursor.execute("SELECT text_content FROM text_table")
+    messages = cursor.fetchall()
     
-    #for message in messages:
-    #    accounts = find_accounts_with_message(message)
-    #    for account in accounts:
-    #        add_account_to_moderation_list(moderation_list_id,account)
-    
-    # enregistrement d'un sample d'un bot connu
-    # log_file_path = "gemmatroup124.log"
-    # insert_log_file_to_db(conn, log_file_path)
+    for message in messages:
+        # c'est un tuple
+        accounts = find_accounts_with_message(message[0])
+        for i, account in enumerate(accounts, start=1):
+            insert_unique_account(conn, account)            

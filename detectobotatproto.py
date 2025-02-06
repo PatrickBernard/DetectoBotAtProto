@@ -43,7 +43,8 @@ def insert_unique_text(conn, text):
             ''', (md5_hash, text))
         print(f"Texte inséré : {text}")
     except sqlite3.IntegrityError:
-        print(f"Doublon détecté : {text} (MD5 : {md5_hash})")
+        #print(f"Doublon détecté : {text} (MD5 : {md5_hash})")
+        pass
         
 # Insérer un compte dans la table
 def insert_unique_account(conn, account):
@@ -56,7 +57,8 @@ def insert_unique_account(conn, account):
             ''', (md5_hash, account))
         print(f"Texte inséré : {account}")
     except sqlite3.IntegrityError:
-        print(f"Doublon détecté : {account} (MD5 : {md5_hash})")
+        #print(f"Doublon détecté : {account} (MD5 : {md5_hash})")
+        pass
 
 # Ajouter toutes les lignes d'un log à la base de données
 def insert_log_file_to_db(conn, log_file_path):

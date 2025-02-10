@@ -84,7 +84,12 @@ def Insert_post_target_to_db(target, conn, client):
     cursor = None
     while True:
         # Récupérer une page de posts
-        response = client.get_author_feed(actor=target,cursor=cursor,limit=50)
+        try:
+            response = client.get_author_feed(actor=target,cursor=cursor,limit=50)
+        except Exception as e:
+            print(f"Erreur lors de la recherche du compte '{target} : {e}")
+            return []
+        
         for post in response.feed:
             text = post.post.record.text
             insert_unique_text(conn, text)

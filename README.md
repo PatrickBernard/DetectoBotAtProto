@@ -45,7 +45,8 @@ pipx install atproto
 
 - Contient :  
   - Des messages de bots russes.  
-  - Des comptes ayant été bannis par la modération.  
+  - Des comptes ayant été bannis par la modération.
+    - peu interessant car souvent ban
 - Vous pouvez l'utiliser en la recopiant :  
   ```bash
   cp sample-doppelganger.db botmessage.db
